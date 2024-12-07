@@ -1,0 +1,309 @@
+<!-- templates/app/find_route.html -->
+{% load custom_tags %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Поиск Маршрута</title>
+
+    <style>
+        .floor-map {
+            display: none;
+            position: relative;
+        }
+        .active-floor {
+            display: block;
+        }
+        /* Настройка контейнера SVG */
+        .svg-container {
+            position: relative;
+            width: 900px; /* Желаемая ширина отображения */
+            height: 500px; /* Желаемая высота отображения */
+            border: 1px solid #ccc;
+        }
+        /* Масштабирование SVG */
+        .svg-container svg.floor-svg,
+        .svg-container svg.route-svg {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .route-svg {
+            pointer-events: none; /* Не мешает взаимодействию с картой */
+            z-index: 10; /* Отображается поверх этажной карты */
+        }
+        .route-svg line {
+            stroke: red;
+            stroke-width: 10; /* Толщина линии соответствует масштабу */
+        }
+        /* Скрыть все узлы внутри SVG */
+        .floor-svg .node {
+            display: none;
+        }
+        /* Показывать только маркеры маршрута */
+        .route-svg .route-marker {
+            display: block;
+        }
+        /* Стили для навигации по этажам */
+        .floor-navigation {
+            margin-top: 20px;
+        }
+        .floor-navigation button {
+            margin-right: 5px;
+            padding: 10px 15px;
+            cursor: pointer;
+        }
+        .floor-navigation button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Поиск Маршрута</h1>
+    <form id="route-form">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Найти маршрут</button>
+    </form>
+
+    <div id="error-message" style="color: red;"></div>
+
+    <div id="floor-navigation" class="floor-navigation" style="display: none;">
+        <h2>Этажи</h2>
+        <div id="floor-buttons">
+            <!-- Кнопки этажей будут добавлены динамически -->
+        </div>
+    </div>
+
+    <div id="floor-maps">
+        {% for floor in floors %}
+            <div class="floor-map" id="floor-{{ floor.number }}">
+                <h3>Этаж {{ floor.number }}</h3>
+                {% if floor_svgs|get_item:floor.number %}
+                    <div class="svg-container">
+                        {{ floor_svgs|get_item:floor.number|safe }}
+                        <!-- Добавляем <svg> для маршрута -->
+                        <svg class="route-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500" style="enable-background:new 0 0 4500 2500;">
+                            <!-- Маршрутные линии будут добавлены динамически -->
+                        </svg>
+                    </div>
+                {% else %}
+                    <p>SVG-файл не найден для этажа {{ floor.number }}.</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <button id="clear-route" style="margin-top: 20px; display: none;">Очистить маршрут</button>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const routeForm = document.getElementById('route-form');
+            const errorMessage = document.getElementById('error-message');
+            const floorMaps = document.querySelectorAll('.floor-map');
+            const floorButtonsContainer = document.getElementById('floor-buttons');
+            const floorNavigation = document.getElementById('floor-navigation');
+            const clearRouteButton = document.getElementById('clear-route');
+            let currentRoute = [];
+
+            // Обработка отправки формы
+            routeForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                errorMessage.textContent = '';
+
+                const formData = new FormData(routeForm);
+                const csrfToken = formData.get('csrfmiddlewaretoken');
+
+                fetch("{% url 'find_route' %}", {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': csrfToken,
+                        'Accept': 'application/json',
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        currentRoute = data.route;
+                        setupFloorNavigation();
+                        displayFloor(getFirstFloor());
+                        clearRouteButton.style.display = 'inline-block';
+                    } else {
+                        errorMessage.textContent = data.message;
+                        floorNavigation.style.display = 'none';
+                        floorMaps.forEach(floor => floor.style.display = 'none');
+                        clearRouteButton.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка:', error);
+                    errorMessage.textContent = 'Произошла ошибка при поиске маршрута.';
+                });
+            });
+
+            // Функция для настройки навигации по этажам
+            function setupFloorNavigation() {
+                const floorsInRoute = [...new Set(currentRoute.map(node => node.floor))].sort((a, b) => a - b);
+                floorButtonsContainer.innerHTML = ''; // Очистить предыдущие кнопки
+
+                floorsInRoute.forEach(floorNumber => {
+                    const button = document.createElement('button');
+                    button.textContent = `Этаж ${floorNumber}`;
+                    button.dataset.floor = floorNumber;
+                    button.addEventListener('click', () => {
+                        displayFloor(floorNumber);
+                    });
+                    floorButtonsContainer.appendChild(button);
+                });
+
+                floorNavigation.style.display = 'block';
+            }
+
+            // Функция для отображения первого этажа маршрута
+            function getFirstFloor() {
+                if (currentRoute.length === 0) return null;
+                return currentRoute[0].floor;
+            }
+
+            // Функция для отображения выбранного этажа и маршрута на нём
+            function displayFloor(floorNumber) {
+                console.log(`Отображение этажа: ${floorNumber}`);
+
+                // Скрыть все этажи
+                floorMaps.forEach(floor => floor.classList.remove('active-floor'));
+
+                // Показать выбранный этаж
+                const floorDiv = document.getElementById(`floor-${floorNumber}`);
+                if (floorDiv) {
+                    floorDiv.classList.add('active-floor');
+                }
+
+                // Очистить предыдущие линии маршрута на этом этаже
+                const svg = floorDiv.querySelector('.route-svg');
+                svg.innerHTML = '';
+
+                // Фильтруем маршрут по этажу
+                const floorRoute = currentRoute.filter(node => node.floor === floorNumber);
+                console.log(`Маршрут на этаже ${floorNumber}:`, floorRoute);
+
+                // Добавляем линии между узлами маршрута
+                for (let i = 0; i < floorRoute.length - 1; i++) {
+                    const from = floorRoute[i];
+                    const to = floorRoute[i + 1];
+                    // Проверка, что оба узла на одном этаже
+                    if (from.floor === to.floor) {
+                        console.log(`Добавляем линию от (${from.x}, ${from.y}) до (${to.x}, ${to.y})`);
+                        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        line.setAttribute("x1", from.x);
+                        line.setAttribute("y1", from.y);
+                        line.setAttribute("x2", to.x);
+                        line.setAttribute("y2", to.y);
+                        line.setAttribute("stroke", "red");
+                        line.setAttribute("stroke-width", "100"); // Толщина линии соответствует масштабу
+                        svg.appendChild(line);
+                    }
+                }
+
+                // Добавляем маркеры узлов (только начальный и конечный)
+                addMarkers(floorNumber, floorRoute);
+
+                // Добавляем временные маркеры для проверки координат
+                // (удалите или закомментируйте после отладки)
+                floorRoute.forEach(node => {
+                    const debugMarker = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    debugMarker.setAttribute("cx", node.x);
+                    debugMarker.setAttribute("cy", node.y);
+                    debugMarker.setAttribute("r", "3");
+                    debugMarker.setAttribute("fill", "yellow");
+                    debugMarker.classList.add('debug-marker');
+                    svg.appendChild(debugMarker);
+                });
+
+                // Обновляем активную кнопку этажей
+                const buttons = floorButtonsContainer.querySelectorAll('button');
+                buttons.forEach(btn => {
+                    if (parseInt(btn.dataset.floor) === floorNumber) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                });
+            }
+
+            // Функция для добавления маркеров узлов
+            function addMarkers(floorNumber, floorRoute) {
+                const floorDiv = document.getElementById(`floor-${floorNumber}`);
+                const svg = floorDiv.querySelector('.route-svg');
+
+                // Очистить предыдущие маркеры
+                svg.querySelectorAll('.route-marker').forEach(marker => marker.remove());
+
+                if (currentRoute.length === 0) return;
+
+                // Определяем начальный и конечный узлы
+                const startNode = currentRoute[0];
+                const endNode = currentRoute[currentRoute.length - 1];
+
+                // Проверяем, находятся ли они на текущем этаже
+                const markersToAdd = [];
+                if (startNode.floor === floorNumber) {
+                    markersToAdd.push({ node: startNode, color: "green", label: "Начало" });
+                }
+                if (endNode.floor === floorNumber && endNode.id !== startNode.id) {
+                    markersToAdd.push({ node: endNode, color: "blue", label: "Конец" });
+                }
+
+                markersToAdd.forEach(({ node, color, label }) => {
+                    // Создание круга
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", node.x);
+                    circle.setAttribute("cy", node.y);
+                    circle.setAttribute("r", "20"); // Размер маркера соответствует масштабу
+                    circle.setAttribute("fill", color);
+                    circle.classList.add('route-marker');
+                    svg.appendChild(circle);
+
+                    // Создание текста для подсказки
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", node.x + 300);
+                    text.setAttribute("y", node.y - 200);
+                    text.setAttribute("fill", "black");
+                    text.setAttribute("font-size", "30px"); // Размер текста соответствует масштабу
+                    text.textContent = label;
+                    text.setAttribute("visibility", "hidden");
+                    svg.appendChild(text);
+
+                    // Обработчики событий для показа/скрытия подсказки
+                    circle.addEventListener('mouseover', () => {
+                        text.setAttribute("visibility", "visible");
+                    });
+                    circle.addEventListener('mouseout', () => {
+                        text.setAttribute("visibility", "hidden");
+                    });
+                });
+            }
+
+            // Функция для очистки маршрута
+            clearRouteButton.addEventListener('click', function() {
+                currentRoute = [];
+                errorMessage.textContent = '';
+                floorNavigation.style.display = 'none';
+                floorMaps.forEach(floor => {
+                    floor.classList.remove('active-floor');
+                    const svg = floor.querySelector('.route-svg');
+                    svg.innerHTML = '';
+                });
+                clearRouteButton.style.display = 'none';
+
+                // Сбросить форму
+                routeForm.reset();
+            });
+        });
+    </script>
+</body>
+</html>
