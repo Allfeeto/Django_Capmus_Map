@@ -14,8 +14,8 @@
         /* Настройка контейнера SVG */
         .svg-container {
             position: relative;
-            width: 900px; /* Ширина отображения */
-            height: 500px; /* Высота отображения */
+            width: 100%;
+            height: 100%;
             border: 1px solid #ccc;
             margin-bottom: 10px;
             margin: 0 auto;    /* Центрируем карту */
@@ -23,6 +23,25 @@
             user-select: none; /* Отключение выделения текста */
             touch-action: pan-x pan-y; /* Разрешаем прокрутку, но обработаем жесты вручную */
             overflow: hidden;  /* Отключаем стандартную прокрутку */
+            background: #DBDCE6;
+        }
+        @media (max-width: 768px) {  /* Медиазапрос для мобильных устройств */
+            .svg-container {
+                height: 500px;  /* Высота карты 500px */
+                width: 100vw;   /* Ширина на 100% от ширины экрана */
+                margin: 0 auto;    /* Центрируем карту */
+            }
+                    /* Масштабирование SVG */
+            .svg-container svg.floor-svg {
+                width: 100%;
+                height: 100%;
+
+            }
+
+            .svg-container svg.route-svg {
+                width: 100%;
+                height: 100%;
+            }
         }
 
 
@@ -35,6 +54,9 @@
             transform-origin: 0 0; /* Устанавливаем точку масштабирования */
             transition: transform 0.1s ease-out; /* Плавное масштабирование */
             will-change: transform;
+            border: none;
+            image-rendering: optimizeQuality; /* Для улучшения качества */
+
         }
 
         .svg-container svg.route-svg {
@@ -48,6 +70,8 @@
             pointer-events: none; /* Не мешает взаимодействию с картой */
             z-index: 10; /* Верхний слой */
             will-change: transform;
+            image-rendering: optimizeQuality; /* Для улучшения качества */
+
         }
 
         .route-svg line {
