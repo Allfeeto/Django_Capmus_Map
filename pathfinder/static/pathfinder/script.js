@@ -79,7 +79,7 @@ document.addEventListener("DOMContentLoaded", function() {
                             line.setAttribute("y1", from.y);
                             line.setAttribute("x2", to.x);
                             line.setAttribute("y2", to.y);
-                            line.setAttribute("stroke", "red");
+                            line.setAttribute("stroke", "darkblue");
                             line.setAttribute("stroke-width", "10"); // Подкорректируйте под ваш масштаб
                             svg.appendChild(line);
                         }
@@ -102,10 +102,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
                         const markersToAdd = [];
                         if (startNode.floor === floorNumber) {
-                            markersToAdd.push({ node: startNode, color: "green", label: "Начало" });
+                            markersToAdd.push({ node: startNode, color: "darkblue", label: "Начало" });
                         }
                         if (endNode.floor === floorNumber && endNode.id !== startNode.id) {
-                            markersToAdd.push({ node: endNode, color: "blue", label: "Конец" });
+                            markersToAdd.push({ node: endNode, color: "darkblue", label: "Конец" });
                         }
 
                         markersToAdd.forEach(({ node, color, label }) => {
@@ -113,19 +113,19 @@ document.addEventListener("DOMContentLoaded", function() {
                             const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
                             circle.setAttribute("cx", node.x);
                             circle.setAttribute("cy", node.y);
-                            circle.setAttribute("r", "20"); // Размер маркера соответствует масштабу
+                            circle.setAttribute("r", "15"); // Размер маркера соответствует масштабу
                             circle.setAttribute("fill", color);
                             circle.classList.add('route-marker');
                             svg.appendChild(circle);
 
                             // Создание текста для подсказки
                             const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                            text.setAttribute("x", node.x + 30); // Подкорректируйте позицию текста
+                            text.setAttribute("x", node.x + 20); // Подкорректируйте позицию текста
                             text.setAttribute("y", node.y - 20);
                             text.setAttribute("fill", "black");
-                            text.setAttribute("font-size", "30px"); // Размер текста соответствует масштабу
+                            text.setAttribute("font-size", "45px"); // Размер текста соответствует масштабу
                             text.textContent = label;
-                            text.setAttribute("visibility", "hidden");
+                            text.setAttribute("visibility", "visible");
                             svg.appendChild(text);
 
                             // Обработчики событий для показа/скрытия подсказки
@@ -133,7 +133,7 @@ document.addEventListener("DOMContentLoaded", function() {
                                 text.setAttribute("visibility", "visible");
                             });
                             circle.addEventListener('mouseout', () => {
-                                text.setAttribute("visibility", "hidden");
+                                text.setAttribute("visibility", "visible");
                             });
                         });
                     }
@@ -200,3 +200,92 @@ document.addEventListener("DOMContentLoaded", function() {
                 routeForm.reset();
             });
         });
+
+
+
+
+
+
+
+
+
+// Функция для инициализации масштабирования и панорамирования
+
+        const svgContainer = document.querySelector('.svg-container');
+        const floorSvg = svgContainer.querySelector('svg.floor-svg');
+        const routeSvg = svgContainer.querySelector('svg.route-svg');
+
+        let scale = 1;  // Начальный масштаб
+        const MIN_SCALE = 1;  // Ограничение на минимальный масштаб
+        const MAX_SCALE = 3;  // Ограничение на максимальный масштаб (если нужно)
+        let startX, startY;  // Начальные координаты для панорамирования
+        let isDragging = false;
+
+        // Обработчик события масштабирования (через колесо мыши)
+        svgContainer.addEventListener('wheel', function(event) {
+            event.preventDefault();  // Предотвращаем стандартное поведение прокрутки страницы
+
+            // Определение направления зума
+            const zoomIn = event.deltaY < 0;
+            const zoomFactor = 0.1;  // Фактор зума
+
+            // Применяем масштаб с ограничением
+            if (zoomIn && scale < MAX_SCALE) {
+                scale += zoomFactor;
+            } else if (!zoomIn && scale > MIN_SCALE) {
+                scale -= zoomFactor;
+            }
+
+            // Применяем новый масштаб
+            floorSvg.style.transform = `scale(${scale})`;
+            routeSvg.style.transform = `scale(${scale})`;
+        });
+
+        // Обработчик события начала перетаскивания (панорамирование)
+        svgContainer.addEventListener('mousedown', function(event) {
+            isDragging = true;
+            startX = event.clientX - svgContainer.offsetLeft;
+            startY = event.clientY - svgContainer.offsetTop;
+            svgContainer.style.cursor = 'grabbing';
+        });
+
+        // Обработчик события завершения перетаскивания
+        svgContainer.addEventListener('mouseup', function() {
+            isDragging = false;
+            svgContainer.style.cursor = 'grab';
+        });
+
+        // Обработчик события движения мыши
+        svgContainer.addEventListener('mousemove', function(event) {
+            if (isDragging) {
+                const deltaX = event.clientX - startX;
+                const deltaY = event.clientY - startY;
+                floorSvg.style.transform = `scale(${scale}) translate(${deltaX}px, ${deltaY}px)`;
+                routeSvg.style.transform = `scale(${scale}) translate(${deltaX}px, ${deltaY}px)`;
+            }
+        });
+
+        // Обработчик события для тач-устройств (на мобильных устройствах)
+        svgContainer.addEventListener('touchstart', function(event) {
+            if (event.touches.length === 1) {
+                isDragging = true;
+                startX = event.touches[0].clientX - svgContainer.offsetLeft;
+                startY = event.touches[0].clientY - svgContainer.offsetTop;
+                svgContainer.style.cursor = 'grabbing';
+            }
+        });
+
+        svgContainer.addEventListener('touchend', function() {
+            isDragging = false;
+            svgContainer.style.cursor = 'grab';
+        });
+
+        svgContainer.addEventListener('touchmove', function(event) {
+            if (isDragging && event.touches.length === 1) {
+                const deltaX = event.touches[0].clientX - startX;
+                const deltaY = event.touches[0].clientY - startY;
+                floorSvg.style.transform = `scale(${scale}) translate(${deltaX}px, ${deltaY}px)`;
+                routeSvg.style.transform = `scale(${scale}) translate(${deltaX}px, ${deltaY}px)`;
+            }
+        });
+

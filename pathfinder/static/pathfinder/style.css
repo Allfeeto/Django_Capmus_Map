@@ -17,7 +17,8 @@
             width: 900px; /* Ширина отображения */
             height: 500px; /* Высота отображения */
             border: 1px solid #ccc;
-            margin-bottom: 10px; /* Отступ между SVG и другими элементами */
+            margin-bottom: 10px;
+            overflow: hidden; /* Обрезать карту при движении */
         }
 
         /* Масштабирование SVG */
@@ -39,7 +40,7 @@
         }
 
         .route-svg line {
-            stroke: red;
+            stroke: darkblue;
             stroke-width: 10; /* Толщина линии соответствует масштабу */
         }
 
@@ -72,6 +73,8 @@
             border: 2px solid #4CAF50; /* Выделение зелёной рамкой */
         }
 
+
+
         /* Стили для кнопки "Очистить маршрут" */
         #clear-route {
             margin-top: 20px;
@@ -84,4 +87,8 @@
         }
         #clear-route:hover {
             background-color: #d32f2f;
+        }
+        #floor-buttons {
+            margin-bottom: 10px;
+
         }
