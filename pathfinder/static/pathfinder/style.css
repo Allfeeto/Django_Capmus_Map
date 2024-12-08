@@ -18,8 +18,13 @@
             height: 500px; /* Высота отображения */
             border: 1px solid #ccc;
             margin-bottom: 10px;
+            margin: 0 auto;    /* Центрируем карту */
             overflow: hidden; /* Обрезать карту при движении */
+            user-select: none; /* Отключение выделения текста */
+            touch-action: pan-x pan-y; /* Разрешаем прокрутку, но обработаем жесты вручную */
+            overflow: hidden;  /* Отключаем стандартную прокрутку */
         }
+
 
         /* Масштабирование SVG */
         .svg-container svg.floor-svg {
@@ -27,6 +32,9 @@
             height: 100%;
             position: relative; /* Относительное позиционирование */
             z-index: 1; /* Нижний слой */
+            transform-origin: 0 0; /* Устанавливаем точку масштабирования */
+            transition: transform 0.1s ease-out; /* Плавное масштабирование */
+            will-change: transform;
         }
 
         .svg-container svg.route-svg {
@@ -35,8 +43,11 @@
             position: absolute; /* Абсолютное позиционирование для наложения */
             top: 0;
             left: 0;
+            transform-origin: 0 0; /* Устанавливаем точку масштабирования */
+            transition: transform 0.1s ease-out; /* Плавное масштабирование */
             pointer-events: none; /* Не мешает взаимодействию с картой */
             z-index: 10; /* Верхний слой */
+            will-change: transform;
         }
 
         .route-svg line {

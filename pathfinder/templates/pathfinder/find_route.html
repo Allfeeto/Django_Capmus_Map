@@ -23,9 +23,9 @@
             {{ form.as_p }}
             <button type="submit"  class="btn btn-primary w-100">Найти маршрут</button>
         </form>
-    
+
         <div id="error-message" style="color: red;"></div>
-    
+
         <!-- Навигация по этажам всегда видима -->
         <div id="floor-navigation" class="floor-navigation mt-4">
             <h2>Этажи</h2>
@@ -37,7 +37,7 @@
                 {% endfor %}
             </div>
         </div>
-    
+
         <div id="floor-maps">
             {% for floor in floors %}
                 <div class="floor-map {% if forloop.first %}active-floor{% endif %}" id="floor-{{ floor.number }}">
@@ -45,11 +45,11 @@
                     {% if floor_svgs|get_item:floor.number %}
                         <div class="svg-container">
                             <!-- Основная карта -->
-                            <svg class="floor-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500">
+                            <svg class="floor-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500" preserveAspectRatio="xMidYMid meet">
                                 {{ floor_svgs|get_item:floor.number|safe }}
                             </svg>
                             <!-- SVG для маршрута -->
-                            <svg class="route-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500"></svg>
+                            <svg class="route-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500"  preserveAspectRatio="xMidYMid meet"></svg>
                         </div>
                     {% else %}
                         <p>SVG-файл не найден для этажа {{ floor.number }}.</p>
@@ -58,10 +58,10 @@
             {% endfor %}
         </div>
 
-    
+
         <!-- Кнопка "Очистить маршрут" расположена ниже всех этажей -->
         <button id="clear-route" style="display: none;">Очистить маршрут</button>
-    
+
     </div>
 
 
@@ -79,88 +79,239 @@
             const floorNavigation = document.getElementById('floor-navigation');
             const clearRouteButton = document.getElementById('clear-route');
             let currentRoute = [];
+            
 
             // Получить все кнопки этажей
             const floorButtons = floorButtonsContainer.querySelectorAll('button');
-            
-            
+
+
             floorMaps.forEach(floorDiv => {
                 const svgContainer = floorDiv.querySelector('.svg-container');
                 const floorSvg = svgContainer.querySelector('svg.floor-svg');
                 const routeSvg = svgContainer.querySelector('svg.route-svg');
-        
+                const mapWidth = svgContainer.offsetWidth;
+                const mapHeight = svgContainer.offsetHeight;
+
+
                 let scale = 1;  // Начальный масштаб
                 const MIN_SCALE = 1;
                 const MAX_SCALE = 3;
-                let startX, startY;
+                let startX, startY, touchStartX, touchStartY;
+                let translateX = 0, translateY = 0; // Позиция
                 let isDragging = false;
-        
+                
+                // Применение начального масштаба
+                svgContainer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+                floorSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+                routeSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+
                 // Обработчик события масштабирования
-                svgContainer.addEventListener('wheel', function(event) {
-                    event.preventDefault();
-        
-                    const zoomIn = event.deltaY < 0;
-                    const zoomFactor = 0.1;
-        
-                    if (zoomIn && scale < MAX_SCALE) {
-                        scale += zoomFactor;
-                    } else if (!zoomIn && scale > MIN_SCALE) {
-                        scale -= zoomFactor;
+                svgContainer.addEventListener('wheel', (e)  => {
+                    e.preventDefault();
+
+                    const scaleAmount = 0.1;
+                    const oldScale = scale;
+
+                    if (e.deltaY < 0) {
+                        scale += scaleAmount; // Увеличение масштаба
+                    } else {
+                        scale = Math.max(1, scale - scaleAmount); // Минимальный масштаб
                     }
-        
+
+                    // Координаты курсора относительно контейнера
+                    let rect = svgContainer.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left;
+                    const mouseY = e.clientY - rect.top;
+
+                    // Вычисление сдвига для центрирования курсора
+                    const offsetX = (mouseX - translateX) / oldScale;
+                    const offsetY = (mouseY - translateY) / oldScale;
+
+                    translateX = mouseX - offsetX * scale;
+                    translateY = mouseY - offsetY * scale;
+
                     // Применяем масштаб для текущего этажа
-                    floorSvg.style.transform = `scale(${scale})`;
-                    routeSvg.style.transform = `scale(${scale})`;
+                    updateTransform();
                 });
-        
-                // Обработчик события начала перетаскивания
-                svgContainer.addEventListener('mousedown', function(event) {
+
+                // Перетаскивание карты
+                svgContainer.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); // Отключаем выделение текста
                     isDragging = true;
-                    startX = event.clientX - svgContainer.offsetLeft;
-                    startY = event.clientY - svgContainer.offsetTop;
-                    svgContainer.style.cursor = 'grabbing';
+                    startX = e.clientX - translateX;
+                    startY = e.clientY - translateY;
                 });
-        
-                // Обработчик события завершения перетаскивания
-                svgContainer.addEventListener('mouseup', function() {
-                    isDragging = false;
-                    svgContainer.style.cursor = 'grab';
+
+                svgContainer.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    translateX = e.clientX - startX;
+                    translateY = e.clientY - startY;
+                    clampPosition(); // Применить ограничения
+                    updateTransform();
                 });
-        
-                // Обработчик события движения мыши
-                svgContainer.addEventListener('mousemove', function(event) {
-                    if (isDragging) {
-                        const deltaX = event.clientX - startX;
-                        const deltaY = event.clientY - startY;
-                        floorSvg.style.transform = `scale(${scale}) translate(${deltaX}px, ${deltaY}px)`;
-                        routeSvg.style.transform = `scale(${scale}) translate(${deltaX}px, ${deltaY}px)`;
-                    }
-                });
-        
-                // Для мобильных устройств
-                svgContainer.addEventListener('touchstart', function(event) {
-                    if (event.touches.length === 1) {
+            
+                // Завершение перемещения карты (мышь)
+                svgContainer.addEventListener('mouseup', () => isDragging = false);
+                svgContainer.addEventListener('mouseleave', () => isDragging = false);
+                
+                // Функция для обновления трансформаций
+                function updateTransform() {
+                    // Применяем одинаковые трансформации для карты и маршрута
+                    floorSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+                    routeSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+                }
+                
+                
+                
+                let initialDistance = null;
+                let initialCenter = null;
+                
+                let startTouchX = 0, startTouchY = 0;  // Начальные координаты для перетаскивания
+                
+                // Рассчитать центр между двумя пальцами
+                function getTouchCenter(touches) {
+                    const x = (touches[0].clientX + touches[1].clientX) / 2;
+                    const y = (touches[0].clientY + touches[1].clientY) / 2;
+                    return { x, y };
+                }
+                
+                // Начало масштабирования или перетаскивания
+                svgContainer.addEventListener('touchstart', (e) => {
+                    if (e.touches.length === 2) {
+                        // Масштабирование: два пальца
+                        const dx = e.touches[0].clientX - e.touches[1].clientX;
+                        const dy = e.touches[0].clientY - e.touches[1].clientY;
+                        initialDistance = Math.sqrt(dx * dx + dy * dy);
+                        initialCenter = getTouchCenter(e.touches);  // Сохраняем начальный центр
+                    } else if (e.touches.length === 1) {
+                        // Перетаскивание: один палец
                         isDragging = true;
-                        startX = event.touches[0].clientX - svgContainer.offsetLeft;
-                        startY = event.touches[0].clientY - svgContainer.offsetTop;
-                        svgContainer.style.cursor = 'grabbing';
+                        startTouchX = e.touches[0].clientX - translateX;
+                        startTouchY = e.touches[0].clientY - translateY;
+                        e.preventDefault();  // Отключаем прокрутку страницы
                     }
                 });
-        
-                svgContainer.addEventListener('touchend', function() {
-                    isDragging = false;
-                    svgContainer.style.cursor = 'grab';
-                });
-        
-                svgContainer.addEventListener('touchmove', function(event) {
-                    if (isDragging && event.touches.length === 1) {
-                        const deltaX = event.touches[0].clientX - startX;
-                        const deltaY = event.touches[0].clientY - startY;
-                        floorSvg.style.transform = `scale(${scale}) translate(${deltaX}px, ${deltaY}px)`;
-                        routeSvg.style.transform = `scale(${scale}) translate(${deltaX}px, ${deltaY}px)`;
+                
+                // Масштабирование и перетаскивание
+                svgContainer.addEventListener('touchmove', (e) => {
+                    if (e.touches.length === 2 && initialDistance) {
+                        e.preventDefault();  // Отключаем прокрутку страницы
+                
+                        const dx = e.touches[0].clientX - e.touches[1].clientX;
+                        const dy = e.touches[0].clientY - e.touches[1].clientY;
+                        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+                
+                        // Новый масштаб
+                        const scaleChange = currentDistance / initialDistance;
+                        const newScale = Math.max(1, scale * scaleChange);  // Минимальный масштаб
+                
+                        // Центр между пальцами
+                        const currentCenter = getTouchCenter(e.touches);
+                
+                        // Смещение карты
+                        const rect = svgContainer.getBoundingClientRect();
+                        const offsetX = (currentCenter.x - rect.left - translateX) / scale;
+                        const offsetY = (currentCenter.y - rect.top - translateY) / scale;
+                
+                        // Пересчёт положения для сохранения центра
+                        translateX = currentCenter.x - rect.left - offsetX * newScale;
+                        translateY = currentCenter.y - rect.top - offsetY * newScale;
+                
+                        scale = newScale;
+                        initialDistance = currentDistance; // Обновляем расстояние
+                        updateTransform();
+                    } else if (e.touches.length === 1 && isDragging) {
+                        // Перетаскивание карты: один палец
+                        e.preventDefault();  // Отключаем прокрутку страницы
+                
+                        const deltaX = e.touches[0].clientX - startTouchX;
+                        const deltaY = e.touches[0].clientY - startTouchY;
+                
+                        translateX = deltaX;
+                        translateY = deltaY;
+                        clampPosition(); // Применить ограничения
+                        updateTransform();
                     }
                 });
+                
+                // Завершение масштабирования и перетаскивания
+                svgContainer.addEventListener('touchend', (e) => {
+                    if (e.touches.length === 0) {
+                        // Завершаем перетаскивание
+                        isDragging = false;
+                        startTouchX = 0;
+                        startTouchY = 0;
+                    } else if (e.touches.length === 2) {
+                        // Завершаем масштабирование
+                        initialDistance = null;
+                        initialCenter = null;
+                    }
+                });
+
+
+
+
+    
+    
+                
+                
+                        
+                // Ограничить координаты перемещения
+                function clampPosition() {
+                    // Получаем актуальные размеры контейнера
+                    const containerWidth = svgContainer.offsetWidth;
+                    const containerHeight = svgContainer.offsetHeight;
+                    
+                    // Получаем актуальные размеры карты с учетом масштаба
+                    const scaledWidth = containerWidth * scale;
+                    const scaledHeight = containerHeight * scale;
+                
+                    // Лимиты по горизонтали
+                    const minX = Math.min(0, containerWidth - scaledWidth);  // Слева (не можем выходить за пределы)
+                    const maxX = 0;  // Справа (не можем двигаться вправо)
+                
+                    // Лимиты по вертикали
+                    const minY = Math.min(0, containerHeight - scaledHeight);  // Снизу (не можем выходить вниз)
+                    const maxY = 0;  // Сверху (не можем двигаться вверх)
+                
+                    // Применяем ограничения на координаты
+                    translateX = Math.max(minX, Math.min(maxX, translateX));
+                    translateY = Math.max(minY, Math.min(maxY, translateY));
+                }
+
+
+
+                
+                // Функция для центрирования изображения в контейнере
+                function centerMap() {
+                    // Получаем размеры контейнера
+                    const containerWidth = svgContainer.offsetWidth;
+                    const containerHeight = svgContainer.offsetHeight;
+            
+                    // Рассчитываем смещение для центрирования карты (с учётом масштаба)
+                    translateX = (containerWidth - mapWidth * scale) * 0;
+                    translateY = (containerHeight - mapHeight * scale) * 0;
+            
+                    // Применяем трансформацию (сдвиг и масштаб)
+                    updateTransform();
+                }
+
+
+                // Инициализация при загрузке страницы
+                window.addEventListener('load', centerMap);
+                window.addEventListener('resize', centerMap); // Центрируем карту при изменении размера окна
+
+
+
+
+
+
+
+
+
+
             });
+            
 
             // Добавить обработчики событий для всех этажных кнопок
             floorButtons.forEach(button => {
@@ -351,19 +502,26 @@
                 // Сбросить форму
                 routeForm.reset();
             });
+
             
+
+
+
+
+
+
 
         });
 
 
 
-        
-        
-        
-        
 
-        
-        
+
+
+
+
+
+
 
 
 
