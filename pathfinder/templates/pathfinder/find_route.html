@@ -116,6 +116,12 @@
                         q: request.term
                     },
                     success: function(data) {
+                        // Сортируем data по label
+                        data.sort(function(a, b) {
+                            if (a.label < b.label) return -1;
+                            if (a.label > b.label) return 1;
+                            return 0;
+                        });
                         response(data);
                     }
                 });
@@ -127,7 +133,7 @@
         }).focus(function() {
             $(this).autocomplete('search', '');
         });
-
+        
         // Инициализация Autocomplete для end
         $('#id_end').autocomplete({
             source: function(request, response) {
@@ -138,6 +144,12 @@
                         q: request.term
                     },
                     success: function(data) {
+                        // Сортируем data по label
+                        data.sort(function(a, b) {
+                            if (a.label < b.label) return -1;
+                            if (a.label > b.label) return 1;
+                            return 0;
+                        });
                         response(data);
                     }
                 });
@@ -149,6 +161,7 @@
         }).focus(function() {
             $(this).autocomplete('search', '');
         });
+
 
         // Отправка формы
         routeForm.on('submit', function(event) {
