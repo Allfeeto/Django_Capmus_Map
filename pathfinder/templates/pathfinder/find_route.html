@@ -20,7 +20,20 @@
         <h1 class="text-center text-primary mb-4">Поиск Маршрута</h1>
         <form id="route-form">
             {% csrf_token %}
-            {{ form.as_p }}
+             <div class="mb-3">
+                {{ form.start.label_tag }}
+                {{ form.start }}
+                {% if form.start.errors %}
+                    <div class="text-danger">{{ form.start.errors }}</div>
+                {% endif %}
+            </div>
+            <div class="mb-3">
+                {{ form.end.label_tag }}
+                {{ form.end }}
+                {% if form.end.errors %}
+                    <div class="text-danger">{{ form.end.errors }}</div>
+                {% endif %}
+            </div>
             <button type="submit"  class="btn btn-primary w-100">Найти маршрут</button>
         </form>
 
@@ -339,7 +352,8 @@
 
                 // Инициализация при загрузке страницы
                 //window.addEventListener('load', centerMap);
-                //window.addEventListener('resize', centerMap); // Центрируем карту при изменении размера окна
+                //window.addEventListener('resize', centerMap); // Центрируем карту при изменении размера окна// Обработчик события изменения размера окна
+
 
 
 

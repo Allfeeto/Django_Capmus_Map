@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Node, Edge, Floor
+from .models import Node, Edge, Floor, Endpoint
 
 @admin.register(Node)
 class NodeAdmin(admin.ModelAdmin):
@@ -13,5 +13,10 @@ class EdgeAdmin(admin.ModelAdmin):
     search_fields = ('from_node__name', 'to_node__name')  # Поиск по узлам
 
 @admin.register(Floor)
-class EdgeFloor(admin.ModelAdmin):
+class FloorAdmin(admin.ModelAdmin):
     list_display = ('number', 'svg')
+
+@admin.register(Endpoint)
+class EndpointAdmin(admin.ModelAdmin):
+    list_display = ['name', 'node', 'additional_info']
+    search_fields = ['name', 'additional_info']

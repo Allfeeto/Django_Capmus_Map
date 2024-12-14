@@ -4,7 +4,7 @@ from django.shortcuts import render
 from django.views import View
 from .forms import RouteForm
 from .utils.route_finder import find_route
-from .models import Floor
+from .models import Floor, Endpoint
 from django.http import JsonResponse
 import json
 import os
@@ -28,9 +28,9 @@ class FindRouteView(View):
     def post(self, request):
         form = RouteForm(request.POST)
         if form.is_valid():
-            start = form.cleaned_data['start']
-            end = form.cleaned_data['end']
-            route = find_route(start.id, end.id)
+            start_endpoint = form.cleaned_data['start']
+            end_endpoint = form.cleaned_data['end']
+            route = find_route(start_endpoint.node.id, end_endpoint.node.id)
             if route:
                 # Сериализуем данные маршрута
                 route_data = [
@@ -47,7 +47,6 @@ class FindRouteView(View):
                 return JsonResponse({'status': 'error', 'message': 'Маршрут не найден.'})
         else:
             return JsonResponse({'status': 'error', 'message': 'Форма содержит ошибки.'})
-
 
 class GetFloorRouteView(View):
     def get(self, request, floor_number):

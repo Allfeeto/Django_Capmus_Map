@@ -24,3 +24,11 @@ class Edge(models.Model):
 
     def __str__(self):
         return f"{self.from_node} -> {self.to_node} ({self.distance})"
+
+class Endpoint(models.Model):
+    node = models.OneToOneField(Node, on_delete=models.CASCADE, related_name='endpoint')
+    name = models.CharField(max_length=100, unique=True)  # Например, "Аудитория 5"
+    additional_info = models.TextField(blank=True, null=True)  # Фамилии преподавателей
+
+    def __str__(self):
+        return self.name
