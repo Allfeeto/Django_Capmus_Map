@@ -3,12 +3,15 @@
             display: none;
             position: relative;
             margin-bottom: 20px; /* Отступы между этажами */
+            user-select: none; /* Отключает выделение текста */
         }
         .active-floor {
             display: block;
+            user-select: none; /* Отключает выделение текста */
         }
         .active-floor-highlight {
             border: 2px solid #4CAF50; /* Выделение зелёной рамкой для этажей с маршрутом */
+            user-select: none; /* Отключает выделение текста */
         }
 
         /* Настройка контейнера SVG */
@@ -25,6 +28,7 @@
             touch-action: none; /* Разрешаем прокрутку, но обработаем жесты вручную */
             overflow: hidden;  /* Отключаем стандартную прокрутку */
             background: #DBDCE6;
+            user-select: none; /* Отключает выделение текста */
         }
 
 
@@ -97,7 +101,8 @@
 
         /* Стили для кнопки "Очистить маршрут" */
         #clear-route {
-            margin-top: 20px;
+            margin-top: 10px;
+            margin-bottom: 20px;
             padding: 10px 20px;
             cursor: pointer;
             background-color: #f44336;

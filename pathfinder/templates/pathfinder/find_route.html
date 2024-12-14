@@ -133,7 +133,7 @@
         }).focus(function() {
             $(this).autocomplete('search', '');
         });
-        
+
         // Инициализация Autocomplete для end
         $('#id_end').autocomplete({
             source: function(request, response) {
@@ -293,17 +293,24 @@
 
                     const markersToAdd = [];
                     if (startNode.floor === floorNumber) {
-                        markersToAdd.push({ node: startNode, color: "darkblue", label: "Начало" });
+                        markersToAdd.push({ node: startNode, color: "darkblue", label: "Начало", radius: 15 });
                     }
                     if (endNode.floor === floorNumber && endNode.id !== startNode.id) {
-                        markersToAdd.push({ node: endNode, color: "darkblue", label: "Конец" });
+                        markersToAdd.push({ node: endNode, color: "darkblue", label: "Конец", radius: 15 });
                     }
 
-                    markersToAdd.forEach(({ node, color, label }) => {
+                    // Добавляем маркеры для промежуточных узлов
+                    currentRoute.forEach((node, index) => {
+                        if (node.floor === floorNumber && node.id !== startNode.id && node.id !== endNode.id) {
+                            markersToAdd.push({ node: node, color: "darkblue", label: "", radius: 5 });
+                        }
+                    });
+
+                    markersToAdd.forEach(({ node, color, label, radius }) => {
                         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
                         circle.setAttribute("cx", node.x);
                         circle.setAttribute("cy", node.y);
-                        circle.setAttribute("r", "15");
+                        circle.setAttribute("r", radius);
                         circle.setAttribute("fill", color);
                         circle.classList.add('route-marker');
                         svg[0].appendChild(circle);
@@ -514,7 +521,7 @@
                     const currentDistance = Math.sqrt(dx * dx + dy * dy);
         
                     const scaleChange = currentDistance / d.initialDistance;
-                    const newScale = Math.max(0.25, d.scale * scaleChange);
+                    const newScale = Math.max(0.17, Math.min(d.scale * scaleChange, 2.5)); // Ограничиваем масштаб между 0.17 и 2.0
         
                     const currentCenter = getTouchCenter(originalEvent.touches);
                     const offsetX = (currentCenter.x - d.translateX) / d.scale;
