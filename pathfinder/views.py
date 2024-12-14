@@ -9,6 +9,29 @@ from django.http import JsonResponse
 import json
 import os
 from django.conf import settings
+from django.db.models import Q
+
+class EndpointAutocompleteView(View):
+    def get(self, request):
+        query = request.GET.get('q', '')
+        results = []
+        if query:
+            endpoints = Endpoint.objects.filter(
+                Q(name__icontains=query) |
+                Q(additional_info__icontains=query)
+            )[:20]
+        else:
+            # Если запрос пустой, возвращаем все или подмножество
+            # Например, все первые 20 записей
+            endpoints = Endpoint.objects.all()[:20]
+
+        for ep in endpoints:
+            results.append({
+                'label': f"{ep.name} - {ep.additional_info}" if ep.additional_info else ep.name,
+                'value': f"{ep.name} - {ep.additional_info}" if ep.additional_info else ep.name,
+                'node_id': ep.node.id
+            })
+        return JsonResponse(results, safe=False)
 
 class FindRouteView(View):
     def get(self, request):

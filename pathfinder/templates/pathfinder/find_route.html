@@ -13,6 +13,9 @@
     <link rel="stylesheet" href="{% static 'pathfinder/style.css' %}">
     <!-- Подключение jQuery -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <!-- jQuery UI -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.js"></script>
 
 </head>
 <body class="bg-light">
@@ -20,21 +23,18 @@
         <h1 class="text-center text-primary mb-4">Поиск Маршрута</h1>
         <form id="route-form">
             {% csrf_token %}
-             <div class="mb-3">
-                {{ form.start.label_tag }}
-                {{ form.start }}
-                {% if form.start.errors %}
-                    <div class="text-danger">{{ form.start.errors }}</div>
-                {% endif %}
+            <div class="mb-3">
+                <label for="id_start" class="form-label">Начальная точка</label>
+                <!-- Заменили select на input -->
+                <input type="text" id="id_start" name="start" class="form-control" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
+                <input type="hidden" id="start_node_id" name="start_node_id">
             </div>
             <div class="mb-3">
-                {{ form.end.label_tag }}
-                {{ form.end }}
-                {% if form.end.errors %}
-                    <div class="text-danger">{{ form.end.errors }}</div>
-                {% endif %}
+                <label for="id_end" class="form-label">Конечная точка</label>
+                <input type="text" id="id_end" name="end" class="form-control" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
+                <input type="hidden" id="end_node_id" name="end_node_id">
             </div>
-            <button type="submit"  class="btn btn-primary w-100">Найти маршрут</button>
+            <button type="submit" class="btn btn-primary w-100">Найти маршрут</button>
         </form>
 
         <div id="error-message" style="color: red;"></div>
@@ -83,502 +83,513 @@
 
 
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const routeForm = document.getElementById('route-form');
-            const errorMessage = document.getElementById('error-message');
-            const floorMaps = document.querySelectorAll('.floor-map');
-            const floorButtonsContainer = document.getElementById('floor-buttons');
-            const floorNavigation = document.getElementById('floor-navigation');
-            const clearRouteButton = document.getElementById('clear-route');
-            let currentRoute = [];
-
-
-            // Получить все кнопки этажей
-            const floorButtons = floorButtonsContainer.querySelectorAll('button');
-
-
-            floorMaps.forEach(floorDiv => {
-                const svgContainer = floorDiv.querySelector('.svg-container');
-                const floorSvg = svgContainer.querySelector('svg.floor-svg');
-                const routeSvg = svgContainer.querySelector('svg.route-svg');
-
-
-                let scale = 0.25;  // Начальный масштаб
-                let startX, startY, touchStartX, touchStartY;
-                let translateX = 0, translateY = 0; // Позиция
-                let isDragging = false;
-
-                // Применение начального масштаба
-                floorSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-                routeSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-
-                // Обработчик события масштабирования
-                svgContainer.addEventListener('wheel', (e)  => {
-                    e.preventDefault();
-
-                    const scaleAmount = 0.1;
-                    const oldScale = scale;
-
-                    if (e.deltaY < 0) {
-                        if (scale <= 1.7){
-                            scale += scaleAmount; // Увеличение масштаба
-                        }
-                    } else {
-                        scale = Math.max(0.25, scale - scaleAmount); // Минимальный масштаб
-                    }
-
-                    // Координаты курсора относительно контейнера
-                    let rect = svgContainer.getBoundingClientRect();
-                    const mouseX = e.clientX - rect.left;
-                    const mouseY = e.clientY - rect.top;
-
-                    // Вычисление сдвига для центрирования курсора
-                    const offsetX = (mouseX - translateX) / oldScale;
-                    const offsetY = (mouseY - translateY) / oldScale;
-
-                    translateX = mouseX - offsetX * scale;
-                    translateY = mouseY - offsetY * scale;
-
-                    // Применяем масштаб для текущего этажа
-                    clampPosition()
-                    updateTransform();
-                });
-
-                // Перетаскивание карты
-                svgContainer.addEventListener('mousedown', (e) => {
-                    e.preventDefault(); // Отключаем выделение текста
-                    isDragging = true;
-                    startX = e.clientX - translateX;
-                    startY = e.clientY - translateY;
-                });
-
-                svgContainer.addEventListener('mousemove', (e) => {
-                    if (!isDragging) return;
-                    translateX = e.clientX - startX;
-                    translateY = e.clientY - startY;
-                    clampPosition(); // Применить ограничения
-                    updateTransform();
-                });
-
-                // Завершение перемещения карты (мышь)
-                svgContainer.addEventListener('mouseup', () => isDragging = false);
-                svgContainer.addEventListener('mouseleave', () => isDragging = false);
-
-                // Функция для обновления трансформаций
-                function updateTransform() {
-                    // Применяем одинаковые трансформации для карты и маршрута
-                    floorSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-                    routeSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-
-                }
-
-
-
-        let initialDistance = null;
-        let initialCenter = null;
-        // Хранение активных касаний
-        let activeTouches = {};
-        
-        // Рассчитываем центр между двумя пальцами
-        function getTouchCenter(touches) {
-            const rect = svgContainer.getBoundingClientRect();
-            const x = (touches[0].clientX + touches[1].clientX) / 2 - rect.left;
-            const y = (touches[0].clientY + touches[1].clientY) / 2 - rect.top;
-            return { x, y };
-        }
-
-        // Обработчики Pointer Events (Touch Events)
-        svgContainer.addEventListener('touchstart', (e) => {
-            // Добавляем активные касания
-            for (let touch of e.changedTouches) {
-                activeTouches[touch.identifier] = touch;
-            }
-
-            if (e.touches.length === 2) {
-                // Масштабирование: два пальца
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                initialDistance = Math.sqrt(dx * dx + dy * dy);
-                initialCenter = getTouchCenter(e.touches); // Сохраняем начальный центр
-            } else if (e.touches.length === 1) {
-                // Перетаскивание: один палец
-                isDragging = true;
-                const touch = e.touches[0];
-                startTouchX = touch.clientX - translateX;
-                startTouchY = touch.clientY - translateY;
-                // e.preventDefault(); // Не требуется, если touch-action настроен правильно
-            }
-        }, { passive: false });
-
-        svgContainer.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 2 && initialDistance) {
-                e.preventDefault();
-
-                // Вычисление расстояния между пальцами
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const currentDistance = Math.sqrt(dx * dx + dy * dy);
-
-                // Новый масштаб
-                const scaleChange = currentDistance / initialDistance;
-                const newScale = Math.max(0.25, scale * scaleChange); // Минимальный масштаб
-
-                // Центр между пальцами относительно svgContainer
-                const currentCenter = getTouchCenter(e.touches);
-
-                // Обновляем смещение карты с учетом нового масштаба
-                const offsetX = (currentCenter.x - translateX) / scale;
-                const offsetY = (currentCenter.y - translateY) / scale;
-
-                // Пересчитываем новые значения translateX и translateY относительно центра
-                translateX = currentCenter.x - offsetX * newScale;
-                translateY = currentCenter.y - offsetY * newScale;
-
-                // Обновляем масштаб
-                scale = newScale;
-                initialDistance = currentDistance; // Обновляем расстояние
-
-                // Применяем ограничения
-                clampPosition();
-                updateTransform();
-            } else if (e.touches.length === 1 && isDragging) {
-                // Перетаскивание с одним пальцем
-                const touch = e.touches[0];
-                translateX = touch.clientX - startTouchX;
-                translateY = touch.clientY - startTouchY;
-
-                // Применяем ограничения
-                clampPosition();
-                updateTransform();
-            }
-        }, { passive: false });
-
-        // Завершаем масштабирование/перетаскивание
-        svgContainer.addEventListener('touchend', (e) => {
-            // Удаляем завершившиеся касания
-            for (let touch of e.changedTouches) {
-                delete activeTouches[touch.identifier];
-            }
-
-            if (e.touches.length === 2) {
-                // Осталось два касания, продолжаем масштабирование
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                initialDistance = Math.sqrt(dx * dx + dy * dy);
-                initialCenter = getTouchCenter(e.touches);
-            } else if (e.touches.length === 1) {
-                // Осталось одно касание, начинаем перетаскивание
-                isDragging = true;
-                const touch = e.touches[0];
-                startTouchX = touch.clientX - translateX;
-                startTouchY = touch.clientY - translateY;
-                initialDistance = null;
-                initialCenter = null;
-            } else {
-                // Нет касаний, завершаем взаимодействие
-                isDragging = false;
-                initialDistance = null;
-                initialCenter = null;
-            }
-        }, { passive: false });
-
-        svgContainer.addEventListener('touchcancel', (e) => {
-            // Обработка отмены касаний
-            for (let touch of e.changedTouches) {
-                delete activeTouches[touch.identifier];
-            }
-            isDragging = false;
-            initialDistance = null;
-            initialCenter = null;
-        }, { passive: false });
-
-
-
-
-
-
-
-
-                // Ограничить координаты перемещения
-                function clampPosition() {
-                    // Получаем актуальные размеры контейнера
-                    const containerWidth = svgContainer.offsetWidth;
-                    const containerHeight = svgContainer.offsetHeight;
-
-                    // Получаем актуальные размеры карты с учетом масштаба
-                    const scaledWidth = 4500 * scale;
-                    const scaledHeight = 2500 * scale;
-
-                    // Лимиты по горизонтали
-                    const minX = Math.min(0, containerWidth - scaledWidth);  // Слева (не можем выходить за пределы)
-                    const maxX = 0;  // Справа (не можем двигаться вправо)
-
-                    // Лимиты по вертикали
-                    const minY = Math.min(0, containerHeight - scaledHeight);  // Снизу (не можем выходить вниз)
-                    const maxY = 0;  // Сверху (не можем двигаться вверх)
-
-                    // Применяем ограничения на координаты
-                    translateX = Math.max(minX, Math.min(maxX, translateX));
-                    translateY = Math.max(minY, Math.min(maxY, translateY));
-                }
-
-
-
-                
-                // Функция для центрирования изображения в контейнере
-                function centerMap() {
-                    // Получаем размеры контейнера
-                    const containerWidth = svgContainer.offsetWidth;
-                    const containerHeight = svgContainer.offsetHeight;
-
-                    // Получаем реальные размеры карты (например, через getBoundingClientRect)
-                    const mapWidth = 4500;
-                    const mapHeight = 2500;
-
-                    // Рассчитываем смещение для центрирования карты (с учётом масштаба)
-                    const scaledWidth = mapWidth * scale;
-                    const scaledHeight = mapHeight * scale;
-
-                    // Рассчитываем смещение для центрирования
-                    translateX = (containerWidth - scaledWidth) / 2;
-                    translateY = (containerHeight - scaledHeight) / 2;
-
-                    // Применяем трансформацию (сдвиг и масштаб)
-                    clampPosition()
-                    updateTransform();
-                }
-
-
-                // Инициализация при загрузке страницы
-                //window.addEventListener('load', centerMap);
-                //window.addEventListener('resize', centerMap); // Центрируем карту при изменении размера окна// Обработчик события изменения размера окна
-
-
-
-
-
-
-
+   <script>
+    $(document).ready(function() {
+        const routeForm = $('#route-form'); 
+        const errorMessage = $('#error-message');
+        const floorMaps = $('.floor-map');
+        const clearRouteButton = $('#clear-route');
+        let currentRoute = [];
+
+        // Кнопки этажей (jQuery-объект)
+        const floorButtons = $('#floor-buttons button');
+
+        // Обработчик для кнопок этажей
+        floorButtons.each(function() {
+            $(this).on('click', function() {
+                const floorNumber = parseInt($(this).data('floor'), 10);
+                displayFloor(floorNumber);
+
+                // Обновить активный класс кнопки
+                floorButtons.removeClass('active');
+                $(this).addClass('active');
             });
+        });
 
-
-            // Добавить обработчики событий для всех этажных кнопок
-            floorButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const floorNumber = parseInt(button.dataset.floor, 10); // Преобразование в число
-                    displayFloor(floorNumber);
-
-                    // Обновить активный класс кнопки
-                    floorButtons.forEach(btn => btn.classList.remove('active'));
-                    button.classList.add('active');
-                });
-            });
-
-            // Обработка отправки формы
-            routeForm.addEventListener('submit', function(event) {
-                event.preventDefault();
-                errorMessage.textContent = '';
-
-                const formData = new FormData(routeForm);
-                const csrfToken = formData.get('csrfmiddlewaretoken');
-
-                fetch("{% url 'find_route' %}", {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Accept': 'application/json',
+        // Инициализация Autocomplete для start
+        $('#id_start').autocomplete({
+            source: function(request, response) {
+                $.ajax({
+                    url: "{% url 'endpoint_autocomplete' %}",
+                    dataType: "json",
+                    data: {
+                        q: request.term
                     },
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
+                    success: function(data) {
+                        response(data);
+                    }
+                });
+            },
+            minLength: 0,
+            select: function(event, ui) {
+                $('#start_node_id').val(ui.item.node_id);
+            }
+        }).focus(function() {
+            $(this).autocomplete('search', '');
+        });
+
+        // Инициализация Autocomplete для end
+        $('#id_end').autocomplete({
+            source: function(request, response) {
+                $.ajax({
+                    url: "{% url 'endpoint_autocomplete' %}",
+                    dataType: "json",
+                    data: {
+                        q: request.term
+                    },
+                    success: function(data) {
+                        response(data);
+                    }
+                });
+            },
+            minLength: 0,
+            select: function(event, ui) {
+                $('#end_node_id').val(ui.item.node_id);
+            }
+        }).focus(function() {
+            $(this).autocomplete('search', '');
+        });
+
+        // Отправка формы
+        routeForm.on('submit', function(event) {
+            event.preventDefault();
+            errorMessage.text('');
+
+            const startNodeId = $('#start_node_id').val();
+            const endNodeId = $('#end_node_id').val();
+
+            if (!startNodeId || !endNodeId) {
+                errorMessage.text('Пожалуйста, выберите начальную и конечную точки из списка.');
+                return;
+            }
+
+            const formData = {
+                'csrfmiddlewaretoken': '{{ csrf_token }}',
+                'start': startNodeId,
+                'end': endNodeId
+            };
+
+            $.ajax({
+                url: "{% url 'find_route' %}",
+                type: 'POST',
+                data: formData,
+                dataType: 'json',
+                success: function(data) {
                     if (data.status === 'success') {
                         currentRoute = data.route;
                         displayRoute();
-                        clearRouteButton.style.display = 'inline-block';
+                        clearRouteButton.show();
                         highlightFloorsInRoute();
-                    } else {
-                        errorMessage.textContent = data.message;
-                        clearRouteButton.style.display = 'none';
-                    }
-                })
-                .catch(error => {
-                    console.error('Ошибка:', error);
-                    errorMessage.textContent = 'Произошла ошибка при поиске маршрута.';
-                });
-            });
 
-            // Функция для отображения маршрута на всех этажах
-            function displayRoute() {
-                floorMaps.forEach(floorDiv => {
-                    const floorNumber = parseInt(floorDiv.id.split('-')[1], 10); // Преобразование в число
-                    const svg = floorDiv.querySelector('.route-svg');
-                    svg.innerHTML = '';
-
-                    // Проходим по всем парам последовательных узлов маршрута
-                    for (let i = 0; i < currentRoute.length - 1; i++) {
-                        const from = currentRoute[i];
-                        const to = currentRoute[i + 1];
-
-                        // Логирование для отладки
-                        console.log(`Проверка соединения между узлами ${from.id} (Этаж ${from.floor}) и ${to.id} (Этаж ${to.floor})`);
-
-                        // Если оба узла на текущем этаже, рисуем линию
-                        if (from.floor === floorNumber && to.floor === floorNumber) {
-                            console.log(`Добавляем линию от (${from.x}, ${from.y}) до (${to.x}, ${to.y}) на этаже ${floorNumber}`);
-                            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-                            line.setAttribute("x1", from.x);
-                            line.setAttribute("y1", from.y);
-                            line.setAttribute("x2", to.x);
-                            line.setAttribute("y2", to.y);
-                            line.setAttribute("stroke", "darkblue");
-                            line.setAttribute("stroke-width", "10"); // Подкорректируйте под ваш масштаб
-                            svg.appendChild(line);
-                        }
-                    }
-
-                    // Добавляем маркеры узлов (только начальный и конечный)
-                    addMarkers(floorNumber);
-                });
-            }
-
-            // Функция для добавления маркеров узлов
-            function addMarkers(floorNumber) {
-                floorMaps.forEach(floorDiv => {
-                    if (parseInt(floorDiv.id.split('-')[1], 10) === floorNumber) {
-                        const svg = floorDiv.querySelector('.route-svg');
-
-                        // Определяем начальный и конечный узлы
+                        // Получаем начальный узел
                         const startNode = currentRoute[0];
-                        const endNode = currentRoute[currentRoute.length - 1];
 
-                        const markersToAdd = [];
-                        if (startNode.floor === floorNumber) {
-                            markersToAdd.push({ node: startNode, color: "darkblue", label: "Начало" });
+                        // Переключаемся на этаж начальной точки
+                        displayFloor(startNode.floor);
+
+                        // Центрируем карту на начальной точке
+                        const floorDiv = $('#floor-' + startNode.floor);
+                        if (floorDiv.length > 0) {
+                            const svgContainer = floorDiv.find('.svg-container');
+                            const floorSvg = svgContainer.find('svg.floor-svg');
+                            const routeSvg = svgContainer.find('svg.route-svg');
+                            
+                            let data = svgContainer.data(); // получить текущие значения
+                            
+                            let scale = 0.35;
+                            const containerWidth = svgContainer[0].offsetWidth;
+                            const containerHeight = svgContainer[0].offsetHeight;
+                            
+                            let translateX = containerWidth / 2 - startNode.x * scale;
+                            let translateY = containerHeight / 2 - startNode.y * scale;
+                            
+                            const scaledWidth = 4500 * scale;
+                            const scaledHeight = 2500 * scale;
+                            const minX = Math.min(0, containerWidth - scaledWidth);
+                            const maxX = 0;
+                            const minY = Math.min(0, containerHeight - scaledHeight);
+                            const maxY = 0;
+                            
+                            translateX = Math.max(minX, Math.min(maxX, translateX));
+                            translateY = Math.max(minY, Math.min(maxY, translateY));
+                            
+                            // Обновить data в svgContainer
+                            data.scale = scale;
+                            data.translateX = translateX;
+                            data.translateY = translateY;
+                            svgContainer.data(data);
+                            
+                            // Применить transform
+                            floorSvg.css('transform', `translate(${translateX}px, ${translateY}px) scale(${scale})`);
+                            routeSvg.css('transform', `translate(${translateX}px, ${translateY}px) scale(${scale})`);
                         }
-                        if (endNode.floor === floorNumber && endNode.id !== startNode.id) {
-                            markersToAdd.push({ node: endNode, color: "darkblue", label: "Конец" });
-                        }
 
-                        markersToAdd.forEach(({ node, color, label }) => {
-                            // Создание круга
-                            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                            circle.setAttribute("cx", node.x);
-                            circle.setAttribute("cy", node.y);
-                            circle.setAttribute("r", "15"); // Размер маркера соответствует масштабу
-                            circle.setAttribute("fill", color);
-                            circle.classList.add('route-marker');
-                            svg.appendChild(circle);
-
-                            // Создание текста для подсказки
-                            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                            text.setAttribute("x", node.x + 20); // Подкорректируйте позицию текста
-                            text.setAttribute("y", node.y - 20);
-                            text.setAttribute("fill", "black");
-                            text.setAttribute("font-size", "45px"); // Размер текста соответствует масштабу
-                            text.textContent = label;
-                            text.setAttribute("visibility", "visible");
-                            svg.appendChild(text);
-
-                            // Обработчики событий для показа/скрытия подсказки
-                            circle.addEventListener('mouseover', () => {
-                                text.setAttribute("visibility", "visible");
-                            });
-                            circle.addEventListener('mouseout', () => {
-                                text.setAttribute("visibility", "visible");
-                            });
-                        });
-                    }
-                });
-            }
-
-            // Функция для выделения этажей, участвующих в маршруте
-            function highlightFloorsInRoute() {
-                const floorsInRoute = [...new Set(currentRoute.map(node => node.floor))].sort((a, b) => a - b);
-                floorButtons.forEach(button => {
-                    const floorNumber = parseInt(button.dataset.floor, 10);
-                    if (floorsInRoute.includes(floorNumber)) {
-                        button.classList.add('active-floor-highlight');
                     } else {
-                        button.classList.remove('active-floor-highlight');
+                        errorMessage.text(data.message);
+                        clearRouteButton.hide();
                     }
-                });
-            }
-
-            // Функция для отображения выбранного этажа
-            function displayFloor(floorNumber) {
-                console.log(`Отображение этажа: ${floorNumber}`);
-
-                // Скрыть все этажи
-                floorMaps.forEach(floor => floor.classList.remove('active-floor'));
-
-                // Показать выбранный этаж
-                const floorDiv = document.getElementById(`floor-${floorNumber}`);
-                if (floorDiv) {
-                    floorDiv.classList.add('active-floor');
-
+                },
+                error: function(xhr, status, error) {
+                    console.error('Ошибка:', error);
+                    errorMessage.text('Произошла ошибка при поиске маршрута.');
+                    clearRouteButton.hide();
                 }
-
-                // Обновить активный класс кнопки
-                floorButtons.forEach(btn => {
-                    if (parseInt(btn.dataset.floor, 10) === floorNumber) {
-                        btn.classList.add('active');
-                    } else {
-                        btn.classList.remove('active');
-                    }
-                });
-
-            }
-
-            // Функция для очистки маршрута
-            clearRouteButton.addEventListener('click', function() {
-                currentRoute = [];
-                errorMessage.textContent = '';
-                clearRouteButton.style.display = 'none';
-                floorMaps.forEach(floor => {
-                    const svg = floor.querySelector('.route-svg');
-                    svg.innerHTML = '';
-                });
-
-                // Сбросить выделения этажей
-                floorButtons.forEach(btn => btn.classList.remove('active-floor-highlight'));
-                // Сбросить активную кнопку
-                floorButtons.forEach(btn => btn.classList.remove('active'));
-                // Показать первый этаж
-                if (floorButtons.length > 0) {
-                    floorButtons[0].classList.add('active');
-                    displayFloor(parseInt(floorButtons[0].dataset.floor, 10));
-                }
-
-                // Сбросить форму
-                routeForm.reset();
             });
+        });
+
+        // Функция для отображения маршрута
+        function displayRoute() {
+            floorMaps.each(function() {
+                const floorDiv = $(this);
+                const floorNumber = parseInt(floorDiv.attr('id').split('-')[1], 10);
+                const svg = floorDiv.find('.route-svg');
+                svg.empty();
+
+                for (let i = 0; i < currentRoute.length - 1; i++) {
+                    const from = currentRoute[i];
+                    const to = currentRoute[i + 1];
+
+                    console.log(`Проверка соединения между узлами ${from.id} (Этаж ${from.floor}) и ${to.id} (Этаж ${to.floor})`);
+
+                    if (from.floor === floorNumber && to.floor === floorNumber) {
+                        console.log(`Добавляем линию от (${from.x}, ${from.y}) до (${to.x}, ${to.y}) на этаже ${floorNumber}`);
+                        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                        line.setAttribute("x1", from.x);
+                        line.setAttribute("y1", from.y);
+                        line.setAttribute("x2", to.x);
+                        line.setAttribute("y2", to.y);
+                        line.setAttribute("stroke", "darkblue");
+                        line.setAttribute("stroke-width", "10");
+                        svg[0].appendChild(line);
+                    }
+                }
+
+                addMarkers(floorNumber);
+            });
+        }
+
+        // Функция для добавления маркеров
+        function addMarkers(floorNumber) {
+            floorMaps.each(function() {
+                const floorDiv = $(this);
+                const currentFloorNumber = parseInt(floorDiv.attr('id').split('-')[1], 10);
+                if (currentFloorNumber === floorNumber) {
+                    const svg = floorDiv.find('.route-svg');
+                    const startNode = currentRoute[0];
+                    const endNode = currentRoute[currentRoute.length - 1];
+
+                    const markersToAdd = [];
+                    if (startNode.floor === floorNumber) {
+                        markersToAdd.push({ node: startNode, color: "darkblue", label: "Начало" });
+                    }
+                    if (endNode.floor === floorNumber && endNode.id !== startNode.id) {
+                        markersToAdd.push({ node: endNode, color: "darkblue", label: "Конец" });
+                    }
+
+                    markersToAdd.forEach(({ node, color, label }) => {
+                        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        circle.setAttribute("cx", node.x);
+                        circle.setAttribute("cy", node.y);
+                        circle.setAttribute("r", "15");
+                        circle.setAttribute("fill", color);
+                        circle.classList.add('route-marker');
+                        svg[0].appendChild(circle);
+
+                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        text.setAttribute("x", node.x + 20);
+                        text.setAttribute("y", node.y - 20);
+                        text.setAttribute("fill", "black");
+                        text.setAttribute("font-size", "45px");
+                        text.textContent = label;
+                        text.setAttribute("visibility", "visible");
+                        svg[0].appendChild(text);
+
+                        // События мыши тоже через jQuery можно, но для SVG можно оставить addEventListener
+                        // Если хотите строго jQuery, придется использовать .on() с преобразованием в jQuery-объект
+                        $(circle).on('mouseover', function() {
+                            $(text).attr('visibility', 'visible');
+                        });
+                        $(circle).on('mouseout', function() {
+                            $(text).attr('visibility', 'visible');
+                        });
+                    });
+                }
+            });
+        }
+
+        // Функция для выделения этажей
+        function highlightFloorsInRoute() {
+            const floorsInRoute = [...new Set(currentRoute.map(node => node.floor))].sort((a, b) => a - b);
+            floorButtons.each(function() {
+                const floorNumber = parseInt($(this).data('floor'), 10);
+                if (floorsInRoute.includes(floorNumber)) {
+                    $(this).addClass('active-floor-highlight');
+                } else {
+                    $(this).removeClass('active-floor-highlight');
+                }
+            });
+        }
+
+        // Функция для отображения выбранного этажа
+        function displayFloor(floorNumber) {
+            console.log(`Отображение этажа: ${floorNumber}`);
+
+            // Скрыть все этажи
+            floorMaps.removeClass('active-floor');
+
+            // Показать выбранный этаж
+            const floorDiv = $(`#floor-${floorNumber}`);
+            if (floorDiv.length > 0) {
+                floorDiv.addClass('active-floor');
+            }
+
+            // Обновить активный класс кнопки
+            floorButtons.each(function() {
+                const btnFloor = parseInt($(this).data('floor'), 10);
+                if (btnFloor === floorNumber) {
+                    $(this).addClass('active');
+                } else {
+                    $(this).removeClass('active');
+                }
+            });
+        }
+
+        // Функция для очистки маршрута
+        clearRouteButton.on('click', function() {
+            currentRoute = [];
+            errorMessage.text('');
+            clearRouteButton.hide();
+            $('.route-svg').empty();
+
+            // Сбросить выделения этажей
+            floorButtons.removeClass('active-floor-highlight');
+
+            // Сбросить активные кнопки
+            floorButtons.removeClass('active');
+
+            // Показать первый этаж
+            if (floorButtons.length > 0) {
+                const firstButton = floorButtons.first();
+                firstButton.addClass('active');
+                const firstFloor = parseInt(firstButton.data('floor'), 10);
+                displayFloor(firstFloor);
+            }
+
+            // Сбросить форму
+            $('#route-form')[0].reset();
+            
+            // Очистить поля ввода и скрытые поля node_id
+            $('#id_start, #id_end').val(''); 
+            $('#start_node_id, #end_node_id').val('');
+            console.log("Форма сброшена");
+            console.log("id_start:", $('#id_start').val());
+            console.log("id_end:", $('#id_end').val());
+        });
+        
 
 
 
 
 
-
-
-
-
+        // Логика масштабирования и перетаскивания карты
+        floorMaps.each(function() {
+            const floorDiv = $(this);
+            const svgContainer = floorDiv.find('.svg-container');
+            const floorSvg = svgContainer.find('svg.floor-svg');
+            const routeSvg = svgContainer.find('svg.route-svg');
+        
+            // Инициализируем начальные значения и сохраняем их в data
+            let data = {
+                scale: 0.25,
+                translateX: 0,
+                translateY: 0,
+                isDragging: false,
+                initialDistance: null,
+                initialCenter: null,
+                activeTouches: {}
+            };
+            svgContainer.data(data);
+        
+            // Применяем начальный transform
+            updateTransform();
+        
+            // Обработчик события масштабирования (wheel)
+            svgContainer.on('wheel', function(e) {
+                e.preventDefault();
+                let d = svgContainer.data();
+                const scaleAmount = 0.1;
+                const oldScale = d.scale;
+        
+                if (e.originalEvent.deltaY < 0) {
+                    if (d.scale <= 1.7){
+                        d.scale += scaleAmount; 
+                    }
+                } else {
+                    d.scale = Math.max(0.25, d.scale - scaleAmount);
+                }
+        
+                let rect = this.getBoundingClientRect();
+                const mouseX = e.originalEvent.clientX - rect.left;
+                const mouseY = e.originalEvent.clientY - rect.top;
+        
+                const offsetX = (mouseX - d.translateX) / oldScale;
+                const offsetY = (mouseY - d.translateY) / oldScale;
+        
+                d.translateX = mouseX - offsetX * d.scale;
+                d.translateY = mouseY - offsetY * d.scale;
+        
+                svgContainer.data(d);
+                clampPosition();
+                updateTransform();
+            });
+        
+            // Перетаскивание карты (мышь)
+            svgContainer.on('mousedown', function(e) {
+                e.preventDefault();
+                let d = svgContainer.data();
+                d.isDragging = true;
+                d.startX = e.clientX - d.translateX;
+                d.startY = e.clientY - d.translateY;
+                svgContainer.data(d);
+            });
+        
+            svgContainer.on('mousemove', function(e) {
+                let d = svgContainer.data();
+                if (!d.isDragging) return;
+                d.translateX = e.clientX - d.startX;
+                d.translateY = e.clientY - d.startY;
+                svgContainer.data(d);
+                clampPosition();
+                updateTransform();
+            });
+        
+            svgContainer.on('mouseup mouseleave', function() {
+                let d = svgContainer.data();
+                d.isDragging = false;
+                svgContainer.data(d);
+            });
+        
+            // Touch Events
+            svgContainer.on('touchstart', function(e) {
+                let d = svgContainer.data();
+                let originalEvent = e.originalEvent;
+                for (let touch of originalEvent.changedTouches) {
+                    d.activeTouches[touch.identifier] = touch;
+                }
+        
+                if (originalEvent.touches.length === 2) {
+                    const dx = originalEvent.touches[0].clientX - originalEvent.touches[1].clientX;
+                    const dy = originalEvent.touches[0].clientY - originalEvent.touches[1].clientY;
+                    d.initialDistance = Math.sqrt(dx * dx + dy * dy);
+                    d.initialCenter = getTouchCenter(originalEvent.touches);
+                } else if (originalEvent.touches.length === 1) {
+                    d.isDragging = true;
+                    const touch = originalEvent.touches[0];
+                    d.startTouchX = touch.clientX - d.translateX;
+                    d.startTouchY = touch.clientY - d.translateY;
+                }
+                svgContainer.data(d);
+            });
+        
+            svgContainer.on('touchmove', function(e) {
+                let d = svgContainer.data();
+                let originalEvent = e.originalEvent;
+                if (originalEvent.touches.length === 2 && d.initialDistance) {
+                    e.preventDefault();
+                    const dx = originalEvent.touches[0].clientX - originalEvent.touches[1].clientX;
+                    const dy = originalEvent.touches[0].clientY - originalEvent.touches[1].clientY;
+                    const currentDistance = Math.sqrt(dx * dx + dy * dy);
+        
+                    const scaleChange = currentDistance / d.initialDistance;
+                    const newScale = Math.max(0.25, d.scale * scaleChange);
+        
+                    const currentCenter = getTouchCenter(originalEvent.touches);
+                    const offsetX = (currentCenter.x - d.translateX) / d.scale;
+                    const offsetY = (currentCenter.y - d.translateY) / d.scale;
+        
+                    d.translateX = currentCenter.x - offsetX * newScale;
+                    d.translateY = currentCenter.y - offsetY * newScale;
+        
+                    d.scale = newScale;
+                    d.initialDistance = currentDistance;
+        
+                    svgContainer.data(d);
+                    clampPosition();
+                    updateTransform();
+                } else if (originalEvent.touches.length === 1 && d.isDragging) {
+                    const touch = originalEvent.touches[0];
+                    d.translateX = touch.clientX - d.startTouchX;
+                    d.translateY = touch.clientY - d.startTouchY;
+                    svgContainer.data(d);
+                    clampPosition();
+                    updateTransform();
+                }
+            });
+        
+            svgContainer.on('touchend touchcancel', function(e) {
+                let d = svgContainer.data();
+                let originalEvent = e.originalEvent;
+                for (let touch of originalEvent.changedTouches) {
+                    delete d.activeTouches[touch.identifier];
+                }
+        
+                if (originalEvent.touches.length === 2) {
+                    const dx = originalEvent.touches[0].clientX - originalEvent.touches[1].clientX;
+                    const dy = originalEvent.touches[0].clientY - originalEvent.touches[1].clientY;
+                    d.initialDistance = Math.sqrt(dx * dx + dy * dy);
+                    d.initialCenter = getTouchCenter(originalEvent.touches);
+                } else if (originalEvent.touches.length === 1) {
+                    d.isDragging = true;
+                    const touch = originalEvent.touches[0];
+                    d.startTouchX = touch.clientX - d.translateX;
+                    d.startTouchY = touch.clientY - d.translateY;
+                    d.initialDistance = null;
+                    d.initialCenter = null;
+                } else {
+                    d.isDragging = false;
+                    d.initialDistance = null;
+                    d.initialCenter = null;
+                }
+                svgContainer.data(d);
+            });
+        
+            function getTouchCenter(touches) {
+                const rect = svgContainer[0].getBoundingClientRect();
+                const x = (touches[0].clientX + touches[1].clientX) / 2 - rect.left;
+                const y = (touches[0].clientY + touches[1].clientY) / 2 - rect.top;
+                return { x, y };
+            }
+        
+            function updateTransform() {
+                let d = svgContainer.data();
+                floorSvg.css('transform', `translate(${d.translateX}px, ${d.translateY}px) scale(${d.scale})`);
+                routeSvg.css('transform', `translate(${d.translateX}px, ${d.translateY}px) scale(${d.scale})`);
+            }
+        
+            function clampPosition() {
+                let d = svgContainer.data();
+                const containerWidth = svgContainer[0].offsetWidth;
+                const containerHeight = svgContainer[0].offsetHeight;
+                const scaledWidth = 4500 * d.scale;
+                const scaledHeight = 2500 * d.scale;
+        
+                const minX = Math.min(0, containerWidth - scaledWidth);
+                const maxX = 0;
+                const minY = Math.min(0, containerHeight - scaledHeight);
+                const maxY = 0;
+        
+                d.translateX = Math.max(minX, Math.min(maxX, d.translateX));
+                d.translateY = Math.max(minY, Math.min(maxY, d.translateY));
+        
+                svgContainer.data(d);
+            }
         });
 
 
+        
 
-
-
-
-
-
-
-
-
-
-
-
-    </script>
+    });
+</script>
 
 </body>
 </html>

@@ -5,13 +5,13 @@ from .models import Endpoint
 
 class RouteForm(forms.Form):
     start = forms.ModelChoiceField(
-        queryset=Endpoint.objects.select_related('node').all(),
+        queryset=Endpoint.objects.none(),
         label="Начальная точка",
         widget=forms.Select(attrs={'class': 'form-control'}),
         to_field_name='node_id'  # Используем ID связанного Node
     )
     end = forms.ModelChoiceField(
-        queryset=Endpoint.objects.select_related('node').all(),
+        queryset=Endpoint.objects.none(),
         label="Конечная точка",
         widget=forms.Select(attrs={'class': 'form-control'}),
         to_field_name='node_id'  # Используем ID связанного Node
