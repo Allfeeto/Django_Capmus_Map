@@ -15,7 +15,8 @@
         .svg-container {
             position: relative;
             width: 100%;
-            height: 100%;
+            max-width: 1120px;
+            height: 600px;
             border: 1px solid #ccc;
             margin-bottom: 10px;
             margin: 0 auto;    /* Центрируем карту */
@@ -25,30 +26,14 @@
             overflow: hidden;  /* Отключаем стандартную прокрутку */
             background: #DBDCE6;
         }
-        @media (max-width: 768px) {  /* Медиазапрос для мобильных устройств */
-            .svg-container {
-                height: 500px;  /* Высота карты 500px */
-                width: 100vw;   /* Ширина на 100% от ширины экрана */
-                margin: 0 auto;    /* Центрируем карту */
-            }
-                    /* Масштабирование SVG */
-            .svg-container svg.floor-svg {
-                width: 100%;
-                height: 100%;
 
-            }
 
-            .svg-container svg.route-svg {
-                width: 100%;
-                height: 100%;
-            }
-        }
 
 
         /* Масштабирование SVG */
         .svg-container svg.floor-svg {
-            width: 100%;
-            height: 100%;
+            width: 4500px;
+            height: 2500px;
             position: relative; /* Относительное позиционирование */
             z-index: 1; /* Нижний слой */
             transform-origin: 0 0; /* Устанавливаем точку масштабирования */
@@ -60,8 +45,8 @@
         }
 
         .svg-container svg.route-svg {
-            width: 100%;
-            height: 100%;
+            width: 4500px;
+            height: 2500px;
             position: absolute; /* Абсолютное позиционирование для наложения */
             top: 0;
             left: 0;

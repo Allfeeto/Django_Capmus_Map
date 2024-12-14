@@ -45,11 +45,11 @@
                     {% if floor_svgs|get_item:floor.number %}
                         <div class="svg-container">
                             <!-- Основная карта -->
-                            <svg class="floor-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500" preserveAspectRatio="xMidYMid meet">
+                            <svg class="floor-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500">
                                 {{ floor_svgs|get_item:floor.number|safe }}
                             </svg>
-                            <!-- SVG для маршрута -->
-                            <svg class="route-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500"  preserveAspectRatio="xMidYMid meet"></svg>
+                            <!-- SVG для маршрута  preserveAspectRatio="xMidYMid meet"-->
+                            <svg class="route-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500"></svg>
                         </div>
                     {% else %}
                         <p>SVG-файл не найден для этажа {{ floor.number }}.</p>
@@ -91,13 +91,12 @@
                 const routeSvg = svgContainer.querySelector('svg.route-svg');
 
 
-                let scale = 1;  // Начальный масштаб
+                let scale = 0.25;  // Начальный масштаб
                 let startX, startY, touchStartX, touchStartY;
                 let translateX = 0, translateY = 0; // Позиция
                 let isDragging = false;
 
                 // Применение начального масштаба
-                svgContainer.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
                 floorSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
                 routeSvg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
 
@@ -109,9 +108,11 @@
                     const oldScale = scale;
 
                     if (e.deltaY < 0) {
-                        scale += scaleAmount; // Увеличение масштаба
+                        if (scale <= 1.7){
+                            scale += scaleAmount; // Увеличение масштаба
+                        }
                     } else {
-                        scale = Math.max(1, scale - scaleAmount); // Минимальный масштаб
+                        scale = Math.max(0.25, scale - scaleAmount); // Минимальный масштаб
                     }
 
                     // Координаты курсора относительно контейнера
@@ -127,6 +128,7 @@
                     translateY = mouseY - offsetY * scale;
 
                     // Применяем масштаб для текущего этажа
+                    clampPosition()
                     updateTransform();
                 });
 
@@ -160,94 +162,123 @@
 
 
 
-let initialDistance = null;
-let initialCenter = null;
-let startTouchX = 0, startTouchY = 0; // Начальные координаты для перетаскивания
+        let initialDistance = null;
+        let initialCenter = null;
+        // Хранение активных касаний
+        let activeTouches = {};
+        
+        // Рассчитываем центр между двумя пальцами
+        function getTouchCenter(touches) {
+            const rect = svgContainer.getBoundingClientRect();
+            const x = (touches[0].clientX + touches[1].clientX) / 2 - rect.left;
+            const y = (touches[0].clientY + touches[1].clientY) / 2 - rect.top;
+            return { x, y };
+        }
 
+        // Обработчики Pointer Events (Touch Events)
+        svgContainer.addEventListener('touchstart', (e) => {
+            // Добавляем активные касания
+            for (let touch of e.changedTouches) {
+                activeTouches[touch.identifier] = touch;
+            }
 
-// Масштабирование с помощью двух пальцев
-svgContainer.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 2) {
-        // Масштабирование: два пальца
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        initialDistance = Math.sqrt(dx * dx + dy * dy);
-        initialCenter = getTouchCenter(e.touches); // Сохраняем начальный центр
-    } else if (e.touches.length === 1) {
-        // Перетаскивание: один палец
-        isDragging = true;
-        startTouchX = e.touches[0].clientX - translateX;
-        startTouchY = e.touches[0].clientY - translateY;
-        e.preventDefault(); // Отключаем прокрутку страницы
-    }
-});
+            if (e.touches.length === 2) {
+                // Масштабирование: два пальца
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                initialDistance = Math.sqrt(dx * dx + dy * dy);
+                initialCenter = getTouchCenter(e.touches); // Сохраняем начальный центр
+            } else if (e.touches.length === 1) {
+                // Перетаскивание: один палец
+                isDragging = true;
+                const touch = e.touches[0];
+                startTouchX = touch.clientX - translateX;
+                startTouchY = touch.clientY - translateY;
+                // e.preventDefault(); // Не требуется, если touch-action настроен правильно
+            }
+        }, { passive: false });
 
-// Масштабирование с двумя пальцами
-svgContainer.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2 && initialDistance) {
-        e.preventDefault();
+        svgContainer.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && initialDistance) {
+                e.preventDefault();
 
-        // Вычисление расстояния между пальцами
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        const currentDistance = Math.sqrt(dx * dx + dy * dy);
+                // Вычисление расстояния между пальцами
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const currentDistance = Math.sqrt(dx * dx + dy * dy);
 
-        // Новый масштаб
-        const scaleChange = currentDistance / initialDistance;
-        const newScale = Math.max(1, scale * scaleChange); // Минимальный масштаб
+                // Новый масштаб
+                const scaleChange = currentDistance / initialDistance;
+                const newScale = Math.max(0.25, scale * scaleChange); // Минимальный масштаб
 
-        // Центр между пальцами
-        const currentCenter = getTouchCenter(e.touches);
+                // Центр между пальцами относительно svgContainer
+                const currentCenter = getTouchCenter(e.touches);
 
-        // Обновляем смещение карты с учетом нового масштаба
-        const rect = svgContainer.getBoundingClientRect();
-        const offsetX = (currentCenter.x - rect.left - translateX) / scale;
-        const offsetY = (currentCenter.y - rect.top - translateY) / scale;
+                // Обновляем смещение карты с учетом нового масштаба
+                const offsetX = (currentCenter.x - translateX) / scale;
+                const offsetY = (currentCenter.y - translateY) / scale;
 
-        // Пересчитываем новые значения translateX и translateY относительно центра
-        translateX = currentCenter.x - rect.left - offsetX * newScale;
-        translateY = currentCenter.y - rect.top - offsetY * newScale;
+                // Пересчитываем новые значения translateX и translateY относительно центра
+                translateX = currentCenter.x - offsetX * newScale;
+                translateY = currentCenter.y - offsetY * newScale;
 
-        // Обновляем масштаб
-        scale = newScale;
-        initialDistance = currentDistance; // Обновляем расстояние
+                // Обновляем масштаб
+                scale = newScale;
+                initialDistance = currentDistance; // Обновляем расстояние
 
-        // Применяем ограничения
-        clampPosition();
-        updateTransform();
-    } else if (e.touches.length === 1 && isDragging) {
-        // Перетаскивание с одним пальцем
-        translateX = e.touches[0].clientX - startTouchX;
-        translateY = e.touches[0].clientY - startTouchY;
+                // Применяем ограничения
+                clampPosition();
+                updateTransform();
+            } else if (e.touches.length === 1 && isDragging) {
+                // Перетаскивание с одним пальцем
+                const touch = e.touches[0];
+                translateX = touch.clientX - startTouchX;
+                translateY = touch.clientY - startTouchY;
 
-        // Применяем ограничения
-        clampPosition();
-        updateTransform();
-    }
-});
+                // Применяем ограничения
+                clampPosition();
+                updateTransform();
+            }
+        }, { passive: false });
 
-// Завершаем масштабирование/перетаскивание
-svgContainer.addEventListener('touchend', () => {
-    // После окончания взаимодействия сбрасываем начальные значения
-    if (initialDistance) {
-        // Если мы завершили масштабирование
-        initialDistance = null;
-        initialCenter = null;
-    } else if (isDragging) {
-        // Если завершили перетаскивание
-        isDragging = false;
-    }
+        // Завершаем масштабирование/перетаскивание
+        svgContainer.addEventListener('touchend', (e) => {
+            // Удаляем завершившиеся касания
+            for (let touch of e.changedTouches) {
+                delete activeTouches[touch.identifier];
+            }
 
-    // Важно: обновить трансформации при завершении
-    updateTransform();
-});
+            if (e.touches.length === 2) {
+                // Осталось два касания, продолжаем масштабирование
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                initialDistance = Math.sqrt(dx * dx + dy * dy);
+                initialCenter = getTouchCenter(e.touches);
+            } else if (e.touches.length === 1) {
+                // Осталось одно касание, начинаем перетаскивание
+                isDragging = true;
+                const touch = e.touches[0];
+                startTouchX = touch.clientX - translateX;
+                startTouchY = touch.clientY - translateY;
+                initialDistance = null;
+                initialCenter = null;
+            } else {
+                // Нет касаний, завершаем взаимодействие
+                isDragging = false;
+                initialDistance = null;
+                initialCenter = null;
+            }
+        }, { passive: false });
 
-// Рассчитываем центр между двумя пальцами
-function getTouchCenter(touches) {
-    const x = (touches[0].clientX + touches[1].clientX) / 2;
-    const y = (touches[0].clientY + touches[1].clientY) / 2;
-    return { x, y };
-}
+        svgContainer.addEventListener('touchcancel', (e) => {
+            // Обработка отмены касаний
+            for (let touch of e.changedTouches) {
+                delete activeTouches[touch.identifier];
+            }
+            isDragging = false;
+            initialDistance = null;
+            initialCenter = null;
+        }, { passive: false });
 
 
 
@@ -263,8 +294,8 @@ function getTouchCenter(touches) {
                     const containerHeight = svgContainer.offsetHeight;
 
                     // Получаем актуальные размеры карты с учетом масштаба
-                    const scaledWidth = containerWidth * scale;
-                    const scaledHeight = containerHeight * scale;
+                    const scaledWidth = 4500 * scale;
+                    const scaledHeight = 2500 * scale;
 
                     // Лимиты по горизонтали
                     const minX = Math.min(0, containerWidth - scaledWidth);  // Слева (не можем выходить за пределы)
@@ -281,26 +312,27 @@ function getTouchCenter(touches) {
 
 
 
-
+                /*
                 // Функция для центрирования изображения в контейнере
                 function centerMap() {
                     // Получаем размеры контейнера
                     const containerWidth = svgContainer.offsetWidth;
                     const containerHeight = svgContainer.offsetHeight;
-                    
+
                     // Получаем реальные размеры карты (например, через getBoundingClientRect)
-                    const mapWidth = floorSvg.getBoundingClientRect().width;
-                    const mapHeight = floorSvg.getBoundingClientRect().height;
-                
+                    const mapWidth = 4500;
+                    const mapHeight = 2500;
+
                     // Рассчитываем смещение для центрирования карты (с учётом масштаба)
                     const scaledWidth = mapWidth * scale;
                     const scaledHeight = mapHeight * scale;
-                
+
                     // Рассчитываем смещение для центрирования
                     translateX = (containerWidth - scaledWidth) / 2;
                     translateY = (containerHeight - scaledHeight) / 2;
-                
+
                     // Применяем трансформацию (сдвиг и масштаб)
+                    clampPosition()
                     updateTransform();
                 }
 
@@ -308,9 +340,7 @@ function getTouchCenter(touches) {
                 // Инициализация при загрузке страницы
                 window.addEventListener('load', centerMap);
                 window.addEventListener('resize', centerMap); // Центрируем карту при изменении размера окна
-
-
-
+                */
 
 
 
@@ -475,6 +505,7 @@ function getTouchCenter(touches) {
                 const floorDiv = document.getElementById(`floor-${floorNumber}`);
                 if (floorDiv) {
                     floorDiv.classList.add('active-floor');
+
                 }
 
                 // Обновить активный класс кнопки
@@ -485,6 +516,7 @@ function getTouchCenter(touches) {
                         btn.classList.remove('active');
                     }
                 });
+
             }
 
             // Функция для очистки маршрута
