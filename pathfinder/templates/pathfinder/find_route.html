@@ -21,40 +21,11 @@
 <body class="bg-light">
     <div class="container">
         <h1 class="text-center text-primary mb-4">Поиск Маршрута</h1>
-        <form id="route-form">
-            {% csrf_token %}
-            <div class="mb-3">
-                <label for="id_start" class="form-label">Начальная точка</label>
-                <!-- Заменили select на input -->
-                <input type="search" id="id_start" name="start" class="form-control" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
-                <input type="hidden" id="start_node_id" name="start_node_id" autocomplete="off">
-            </div>
-            <div class="mb-3">
-                <label for="id_end" class="form-label">Конечная точка</label>
-                <input type="search" id="id_end" name="end" class="form-control" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
-                <input type="hidden" id="end_node_id" name="end_node_id" autocomplete="off">
-            </div>
-            <button type="submit" class="btn btn-primary w-100">Найти маршрут</button>
-        </form>
 
-        <div id="error-message" style="color: red;"></div>
-
-        <!-- Навигация по этажам всегда видима -->
-        <div id="floor-navigation" class="floor-navigation mt-4">
-            <h2>Этажи</h2>
-            <div id="floor-buttons">
-                {% for floor in floors %}
-                    <button  class="btn btn-secondary {% if forloop.first %}active{% endif %}" data-floor="{{ floor.number }}">
-                        Этаж {{ floor.number }}
-                    </button>
-                {% endfor %}
-            </div>
-        </div>
 
         <div id="floor-maps">
             {% for floor in floors %}
                 <div class="floor-map {% if forloop.first %}active-floor{% endif %}" id="floor-{{ floor.number }}">
-                    <h3>Этаж {{ floor.number }}</h3>
                     {% if floor_svgs|get_item:floor.number %}
                         <div class="svg-container">
                             <!-- Основная карта -->
@@ -63,6 +34,16 @@
                             </svg>
                             <!-- SVG для маршрута  preserveAspectRatio="xMidYMid meet"-->
                             <svg class="route-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4500 2500"></svg>
+                            <!-- Навигация по этажам -->
+                            <div id="floor-navigation" class="floor-navigation">
+                                <div id="floor-buttons">
+                                    {% for floor in floors %}
+                                        <button class="btn btn-secondary {% if forloop.first %}active{% endif %}" data-floor="{{ floor.number }}">
+                                            Этаж {{ floor.number }}
+                                        </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
                         </div>
                     {% else %}
                         <p>SVG-файл не найден для этажа {{ floor.number }}.</p>
@@ -70,6 +51,26 @@
                 </div>
             {% endfor %}
         </div>
+        
+        
+        <div id="route-form-container" class="route-form-container">
+            <form id="route-form">
+                {% csrf_token %}
+                <div class="mb-3 row">
+                    <label for="id_start" class="form-label col-3">От</label>
+                    <input type="search" id="id_start" name="start" class="form-control  col-9" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
+                    <input type="hidden" id="start_node_id" name="start_node_id" autocomplete="off">
+                </div>
+                <div class="mb-3 row">
+                    <label for="id_end" class="form-label col-3">До</label>
+                    <input type="search" id="id_end" name="end" class="form-control  col-9" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
+                    <input type="hidden" id="end_node_id" name="end_node_id" autocomplete="off">
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Найти маршрут</button>
+            </form>
+            <div id="error-message" style="color: red;"></div>
+        </div>
+
 
 
         <!-- Кнопка "Очистить маршрут" расположена ниже всех этажей -->
@@ -99,10 +100,10 @@
             $(this).on('click', function() {
                 const floorNumber = parseInt($(this).data('floor'), 10);
                 displayFloor(floorNumber);
-
+                
                 // Обновить активный класс кнопки
-                floorButtons.removeClass('active');
-                $(this).addClass('active');
+                //floorButtons.removeClass('active');
+                //$(this).addClass('active');
             });
         });
 
@@ -604,6 +605,9 @@
                 svgContainer.data(d);
             }
         });
+        
+
+
 
 
         
