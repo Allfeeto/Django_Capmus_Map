@@ -21,6 +21,24 @@
 <body class="bg-light">
     <div class="container">
         <h1 class="text-center text-primary mb-4">Поиск Маршрута</h1>
+        <form id="route-form">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="id_start" class="form-label">Начальная точка</label>
+                <!-- Заменили select на input -->
+                <input type="search" id="id_start" name="start" class="form-control" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
+                <input type="hidden" id="start_node_id" name="start_node_id" autocomplete="off">
+            </div>
+            <div class="mb-3">
+                <label for="id_end" class="form-label">Конечная точка</label>
+                <input type="search" id="id_end" name="end" class="form-control" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
+                <input type="hidden" id="end_node_id" name="end_node_id" autocomplete="off">
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Найти маршрут</button>
+        </form>
+
+        <div id="error-message" style="color: red;"></div>
+
 
 
         <div id="floor-maps">
@@ -51,27 +69,6 @@
                 </div>
             {% endfor %}
         </div>
-        
-        
-        
-        <div id="route-form-container" class="route-form-container">
-            <form id="route-form">
-                {% csrf_token %}
-                <div class="mb-3">
-                    <label for="id_start" class="form-label">Начальная точка</label>
-                    <input type="search" id="id_start" name="start" class="form-control" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
-                    <input type="hidden" id="start_node_id" name="start_node_id" autocomplete="off">
-                </div>
-                <div class="mb-3">
-                    <label for="id_end" class="form-label">Конечная точка</label>
-                    <input type="search" id="id_end" name="end" class="form-control" placeholder="Введите номер аудитории или фамилию преподавателя" autocomplete="off">
-                    <input type="hidden" id="end_node_id" name="end_node_id" autocomplete="off">
-                </div>
-                <button type="submit" class="btn btn-primary w-100">Найти маршрут</button>
-            </form>
-            <div id="error-message" style="color: red;"></div>
-        </div>
-
 
 
         <!-- Кнопка "Очистить маршрут" расположена ниже всех этажей -->
