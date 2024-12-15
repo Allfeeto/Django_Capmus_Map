@@ -95,7 +95,7 @@
             gap: 5px; /* Расстояние между кнопками */
         }
         .floor-navigation button {
-
+            margin-right: 5px;
             padding: 10px 15px;
             cursor: pointer;
         }
@@ -129,63 +129,3 @@
             margin-bottom: 10px;
 
         }
-
-
-
-        /* Стили для контейнера формы */
-.route-form-container {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 15px;
-    background-color: #ffffff;
-    border-top: 1px solid #ccc;
-    border-radius: 8px 8px 0 0;
-    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
-    z-index: 200;
-    max-width: 100%;
-}
-
-/* Стили для формы */
-#route-form {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-/* Стили для блоков с полями ввода */
-.mb-3 {
-    display: flex;
-    align-items: center; /* Выравнивание по центру по вертикали */
-    gap: 10px; /* Отступ между label и input */
-}
-
-/* Стили для label */
-.form-label {
-    min-width: 80px; /* Минимальная ширина для метки */
-    font-weight: bold;
-}
-
-/* Стили для input */
-.form-control {
-    padding: 10px;
-    font-size: 14px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-}
-
-/* Стили для кнопки */
-#route-form button {
-    padding: 12px;
-    font-size: 16px;
-    font-weight: bold;
-    border-radius: 5px;
-}
-
-/* Стили для сообщения об ошибке */
-#error-message {
-    margin-top: 10px;
-    font-size: 14px;
-    color: red;
-}
